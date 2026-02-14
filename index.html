@@ -1,0 +1,1287 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ritual Encantado</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    html,body{margin:0;height:100%;overflow:hidden;background:#070610;}
+    canvas{display:block;}
+    :root{ --gold: rgba(255,210,90,0.95); --ink: rgba(255,248,235,0.98); }
+
+    .ui{position:fixed; inset:0; pointer-events:none; color:var(--ink); font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+    .hud{
+      position:absolute; top:14px; left:14px;
+      display:flex; gap:10px; align-items:center;
+      padding:10px 12px; border-radius:14px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,210,120,.12);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .dot{width:10px;height:10px;border-radius:50%;background:rgba(255,210,90,.9);box-shadow:0 0 18px rgba(255,210,90,.75);}
+
+    .hint{
+      position:absolute; bottom:14px; left:14px;
+      font-size:12px; opacity:.92;
+      padding:10px 12px; border-radius:14px;
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(255,210,120,.10);
+      backdrop-filter: blur(10px);
+      max-width: min(92vw, 760px);
+    }
+    .hint .line{font-family:Cinzel,serif;letter-spacing:.12em;text-transform:uppercase;font-size:12px;opacity:.92;margin-bottom:6px}
+    .hint .small{font-family:Inter,sans-serif;letter-spacing:.02em;opacity:.86}
+
+    .audioToast{
+      position:absolute; top:14px; right:14px;
+      font-size:12px; opacity:.92;
+      padding:10px 12px; border-radius:14px;
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(255,210,120,.10);
+      backdrop-filter: blur(10px);
+      max-width:min(70vw, 560px);
+      text-align:right;
+      pointer-events:auto;
+      font-family:Cinzel,serif;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      transition: opacity .35s ease, transform .35s ease;
+      cursor: pointer;
+      user-select: none;
+      line-height: 1.35;
+    }
+    .audioToast.hidden{opacity:0; transform: translateY(-6px); pointer-events:none;}
+
+    /* ===== Overlay mensajes ===== */
+    .whisperOverlay{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      pointer-events:none;
+      opacity:0;
+      transition: opacity .35s ease;
+      padding: clamp(12px, 2.8vw, 28px);
+    }
+    .whisperOverlay.show{opacity:1; pointer-events:auto;}
+
+    .whisperCard{
+      pointer-events:auto;
+      width: min(980px, 94vw);
+      border-radius: 22px;
+      background: rgba(35, 8, 55, .42);
+      border: 1px solid rgba(255,210,120,.22);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 24px 80px rgba(0,0,0,.45);
+      position: relative;
+      overflow: hidden;
+      transform: translateY(10px);
+      transition: transform .35s ease;
+    }
+    .whisperOverlay.show .whisperCard{transform:translateY(0);}
+    .whisperCard::before{
+      content:"";
+      position:absolute; inset:-40%;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,210,90,.18), transparent 55%),
+        radial-gradient(circle at 70% 60%, rgba(255,210,90,.10), transparent 60%);
+      transform: rotate(12deg);
+      pointer-events:none;
+    }
+    .whisperInner{padding: 18px 18px 16px 18px; position:relative; z-index:1;}
+    .whisperTitle{
+      font-family:Cinzel,serif; letter-spacing:.18em; text-transform:uppercase;
+      font-size:12px; opacity:.78; margin-bottom:12px; text-align:center;
+      text-shadow: 0 0 18px rgba(255,210,90,.18);
+    }
+    .whisperBody{
+      max-height: min(64vh, 520px);
+      overflow:auto;
+      padding: 6px 8px 10px 8px;
+      border-radius: 16px;
+      background: rgba(0,0,0,.12);
+      border: 1px solid rgba(255,210,120,.12);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,210,90,.35) rgba(0,0,0,.12);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+              mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+    }
+
+    .glowLine{
+      margin: 10px 6px;
+      font-size: clamp(14px, 1.85vw, 18px);
+      line-height: 1.62;
+      color: rgba(255,248,235,.98);
+      text-shadow:
+        0 0 10px rgba(255,210,90,.18),
+        0 0 22px rgba(255,210,90,.12),
+        0 0 44px rgba(255,170,70,.07);
+      opacity: 0;
+      transform: translateY(6px);
+      filter: blur(.4px);
+      animation: softReveal .85s ease forwards;
+      position: relative;
+    }
+    .glowLine::after{
+      content:"";
+      position:absolute;
+      inset:-2px -6px;
+      background: linear-gradient(110deg, transparent 0%, rgba(255,210,90,.14) 45%, transparent 65%);
+      transform: translateX(-120%);
+      opacity: 0;
+      pointer-events:none;
+      mix-blend-mode: screen;
+      animation: shimmer 3.2s ease 1;
+    }
+    @keyframes softReveal{
+      0%{opacity:0; transform:translateY(8px); filter:blur(1px);}
+      60%{opacity:.85;}
+      100%{opacity:1; transform:translateY(0); filter:blur(0);}
+    }
+    @keyframes shimmer{
+      0%{transform:translateX(-120%); opacity:0;}
+      20%{opacity:.50;}
+      60%{opacity:.22;}
+      100%{transform:translateX(120%); opacity:0;}
+    }
+
+    .whisperActions{display:flex; justify-content:center; padding: 14px 0 2px 0;}
+    .whisperBtn{
+      font-family:Cinzel,serif; letter-spacing:.16em; text-transform:uppercase;
+      font-size:12px; color: rgba(255,245,230,.98);
+      background: rgba(255,210,90,.12);
+      border: 1px solid rgba(255,210,90,.28);
+      border-radius: 999px;
+      padding: 10px 14px;
+      cursor:pointer;
+      pointer-events:auto;
+      user-select:none;
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .whisperBtn .spark{width:8px;height:8px;border-radius:50%;background:rgba(255,210,90,.95);box-shadow:0 0 18px rgba(255,210,90,.75);opacity:.9}
+
+    /* ===== Final ===== */
+    .finale{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      pointer-events:none;
+      opacity:0;
+      transition: opacity .9s ease;
+      padding: clamp(12px, 2.8vw, 28px);
+    }
+    .finale.show{opacity:1; pointer-events:auto;}
+
+    .finale .card{
+      width: min(980px, 94vw);
+      border-radius:22px;
+      background: rgba(35, 8, 55, .30);
+      border: 1px solid rgba(255,210,120,.22);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 24px 80px rgba(0,0,0,.45);
+      position: relative;
+      overflow:hidden;
+      padding: 18px 18px 14px 18px;
+    }
+    .finale .card::before{
+      content:"";
+      position:absolute; inset:-40%;
+      background:
+        radial-gradient(circle at 30% 35%, rgba(255,210,90,.16), transparent 55%),
+        radial-gradient(circle at 70% 65%, rgba(255,210,90,.08), transparent 60%);
+      transform: rotate(10deg);
+      pointer-events:none;
+    }
+    .finale .big{
+      font-family:Cinzel,serif;
+      font-size: clamp(20px, 3.6vw, 40px);
+      line-height:1.14;
+      letter-spacing:.04em;
+      text-align:center;
+      margin: 4px 0 12px 0;
+      color: rgba(255,248,235,.98);
+      text-shadow:
+        0 0 14px rgba(255,210,90,.22),
+        0 0 34px rgba(255,210,90,.12);
+      position:relative; z-index:1;
+    }
+    .finalBody{
+      max-height: min(56vh, 520px);
+      overflow:auto;
+      padding: 6px 8px 10px 8px;
+      border-radius:16px;
+      background: rgba(0,0,0,.10);
+      border: 1px solid rgba(255,210,120,.10);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+              mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+      position:relative; z-index:1;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,210,90,.35) rgba(0,0,0,.12);
+    }
+    .finalActions{
+      display:flex; justify-content:center; gap:10px;
+      margin-top: 12px; position:relative; z-index:1;
+      pointer-events:auto; flex-wrap: wrap;
+    }
+    .chipBtn{
+      font-family:Cinzel,serif;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:12px;
+      color: rgba(255,245,230,.98);
+      background: rgba(255,210,90,.10);
+      border: 1px solid rgba(255,210,90,.24);
+      border-radius: 999px;
+      padding: 10px 14px;
+      cursor:pointer; user-select:none;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .finalSmall{
+      font-family:Cinzel,serif;
+      font-size: 12px;
+      opacity:.78;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      margin-top: 10px;
+      text-align:center;
+      position:relative; z-index:1;
+      text-shadow: 0 0 18px rgba(255,210,90,.14);
+    }
+
+    /* ===== Polaroid (recuerdo) ===== */
+    .polaroidOverlay{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      padding: 18px;
+      background: rgba(0,0,0,.35);
+      backdrop-filter: blur(10px);
+      opacity:0;
+      pointer-events:none;
+      transition: opacity .25s ease;
+    }
+    .polaroidOverlay.show{opacity:1; pointer-events:auto;}
+    .polaroid{
+      width: min(520px, 92vw);
+      background: rgba(255,248,235,.92);
+      border-radius: 18px;
+      padding: 14px 14px 18px 14px;
+      box-shadow: 0 30px 110px rgba(0,0,0,.55);
+      position: relative;
+      border: 1px solid rgba(255,210,120,.35);
+      transform: translateY(10px);
+      transition: transform .25s ease;
+    }
+    .polaroidOverlay.show .polaroid{transform:translateY(0);}
+    .polaroid img{
+      width:100%;
+      border-radius: 12px;
+      display:block;
+      background: #0b0816;
+      border: 1px solid rgba(0,0,0,.08);
+    }
+    .polaroid .cap{
+      font-family:Cinzel,serif;
+      margin-top: 12px;
+      text-align:center;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color: rgba(20,10,30,.78);
+      font-size: 12px;
+    }
+    .polaroid .actions{
+      display:flex;
+      justify-content:center;
+      gap:10px;
+      margin-top: 12px;
+      flex-wrap:wrap;
+    }
+    .lightBtn{
+      font-family:Cinzel,serif;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:12px;
+      color: rgba(35,10,55,.90);
+      background: rgba(255,210,90,.38);
+      border: 1px solid rgba(255,190,75,.50);
+      border-radius: 999px;
+      padding: 10px 14px;
+      cursor:pointer;
+      user-select:none;
+      text-decoration:none;
+    }
+    .ghostBtn{
+      font-family:Cinzel,serif;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:12px;
+      color: rgba(35,10,55,.86);
+      background: rgba(255,255,255,.55);
+      border: 1px solid rgba(0,0,0,.10);
+      border-radius: 999px;
+      padding: 10px 14px;
+      cursor:pointer;
+      user-select:none;
+    }
+  </style>
+</head>
+
+<body>
+<canvas id="c"></canvas>
+<audio id="audio" loop preload="auto" playsinline></audio>
+
+<div class="ui">
+  <div class="hud">
+    <span class="dot"></span>
+    <div>
+      <div style="font-family:Cinzel,serif;letter-spacing:.12em;text-transform:uppercase;font-size:12px;opacity:.9">
+        Ritual: <span id="shapeName">Corazón</span>
+      </div>
+      <div style="font-size:12px;opacity:.75">Progreso: <span id="prog">0%</span></div>
+    </div>
+  </div>
+
+  <div class="audioToast" id="audioToast">Toca para activar música</div>
+
+  <div class="hint" id="hint">
+    <div class="line">Sigue la luz</div>
+    <div class="small">Completa: <b>Corazón → Estrella → Infinito</b>. La magia responde a tu cursor.</div>
+  </div>
+</div>
+
+<div class="whisperOverlay" id="whisperOverlay">
+  <div class="whisperCard">
+    <div class="whisperInner">
+      <div class="whisperTitle">Susurro</div>
+      <div class="whisperBody" id="whisperBody"></div>
+      <div class="whisperActions">
+        <button class="whisperBtn" id="continueBtn" type="button">
+          <span class="spark"></span>
+          Continuar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="finale" id="finale">
+  <div class="card">
+    <div class="big" id="finalTitle">flor del mar</div>
+    <div class="finalBody" id="finalBody"></div>
+    <div class="finalActions">
+      <button class="chipBtn" id="saveBtn" type="button">Guardar recuerdo</button>
+      <button class="chipBtn" id="restartBtn" type="button">Volver a ver</button>
+    </div>
+    <div class="finalSmall">Ritual completado</div>
+  </div>
+</div>
+
+<div class="polaroidOverlay" id="polaroidOverlay">
+  <div class="polaroid">
+    <img id="polaroidImg" alt="recuerdo" />
+    <div class="cap">flor del mar</div>
+    <div class="actions">
+      <a id="downloadLink" class="lightBtn" download="recuerdo-flor-del-mar.png">Descargar</a>
+      <button id="closePolaroid" class="ghostBtn" type="button">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Setup ===== */
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const DPR = Math.max(1, Math.min(2, devicePixelRatio || 1));
+let W=0,H=0;
+
+const rand=(a,b)=>a+Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+/* Mouse */
+let mouse={x:0,y:0,vx:0,vy:0,px:0,py:0,has:false};
+addEventListener("mousemove", e=>{
+  mouse.has=true;
+  mouse.px = mouse.x || e.clientX; mouse.py = mouse.y || e.clientY;
+  mouse.x = e.clientX; mouse.y = e.clientY;
+  mouse.vx = mouse.x - mouse.px; mouse.vy = mouse.y - mouse.py;
+});
+
+/* ===== Audio (robusto) ===== */
+const audio = document.getElementById("audio");
+const audioToast = document.getElementById("audioToast");
+let audioOn=false;
+
+const audioCandidates = [
+  "musica.mp3",
+  "musica.m4a",
+  "musica.ogg",
+  "musica.wav",
+  "musica.mpeg",
+  "musica.mpeg.mpeg"
+];
+
+function setToast(msg){ audioToast.textContent = msg; }
+
+async function tryStartAudio(userGesture=false){
+  if(audioOn) return true;
+
+  audio.volume = 0.85;
+  audio.muted = false;
+  audio.loop = true;
+  audio.playsInline = true;
+
+  for(const src of audioCandidates){
+    audio.src = src;
+    try{
+      audio.load();
+      const p = audio.play();
+      if(p && typeof p.then === "function") await p;
+
+      audioOn = true;
+      setToast("Música activada");
+      setTimeout(()=>audioToast.classList.add("hidden"), 1400);
+      return true;
+    }catch(e){
+      // try next
+    }
+  }
+
+  audioToast.classList.remove("hidden");
+  if(userGesture){
+    setToast("No se pudo reproducir. Usa musica.mp3 en la misma carpeta.");
+  } else {
+    setToast("Toca para activar música");
+  }
+  return false;
+}
+
+window.addEventListener("load", ()=>{ tryStartAudio(false); });
+audioToast.addEventListener("click", ()=>tryStartAudio(true));
+addEventListener("pointerdown", ()=>tryStartAudio(true), { passive:true });
+
+/* ===== UI ===== */
+const shapeNameEl = document.getElementById("shapeName");
+const progEl = document.getElementById("prog");
+
+const whisperOverlay = document.getElementById("whisperOverlay");
+const whisperBody = document.getElementById("whisperBody");
+const continueBtn = document.getElementById("continueBtn");
+
+const finale = document.getElementById("finale");
+const finalTitle = document.getElementById("finalTitle");
+const finalBody = document.getElementById("finalBody");
+
+const saveBtn = document.getElementById("saveBtn");
+const restartBtn = document.getElementById("restartBtn");
+
+const polaroidOverlay = document.getElementById("polaroidOverlay");
+const polaroidImg = document.getElementById("polaroidImg");
+const downloadLink = document.getElementById("downloadLink");
+const closePolaroid = document.getElementById("closePolaroid");
+
+let pausedForMessage=false;
+let pendingNext=null;
+
+/* ===== Progreso ===== */
+const FOLLOW_R = 30;
+const ADVANCE_STEP = 3;
+const FAIL_DECAY = 1;
+
+/* ===== Estado global ===== */
+let finalMode=false;
+let finalStartMs=0;
+let finalCenter = {x:0,y:0};
+let haloActive=false;
+
+let shapePoints=[];
+let progressIdx=0;
+let progressHold=0;
+let stuckParticles=[];
+let lastStuckAt=0;
+let phaseIndex=0;
+
+/* ===== gating infinito ===== */
+let infinityGating=false;       // true mientras se “arma” el anillo
+let infinityGateStart=0;        // timestamp
+let ringProgress01=0;           // 0..1
+
+/* ===== Fases ===== */
+const phases=[
+  {
+    name:"Corazón",
+    kind:"heart",
+    msg:`El corazón tiene memoria.
+Y desde que te miro, late distinto.
+
+No fue inmediato.
+Fue algo que empezó casi en silencio,
+como una variación leve en el ritmo
+que uno no nota hasta que ya es imposible ignorarla.
+
+Tu sonrisa no es solo un gesto.
+Es una grieta suave por donde entra la luz,
+una interrupción delicada en el orden de mis días.
+Y cuando aparece, algo en mí se inclina hacia ti
+sin que yo lo decida del todo.
+
+Tu cabello cayendo con esa naturalidad tuya,
+esa forma despreocupada de ser hermosa,
+termina de desarmarme.
+No por lo evidente,
+sino por lo inevitable.
+
+Yo creía tener el pulso estable,
+las emociones medidas,
+la calma bajo control.
+
+Y sin embargo,
+desde que estás,
+hay un desorden que no quiero corregir.`
+  },
+  {
+    name:"Estrella",
+    kind:"star",
+    msg:`No es solo belleza.
+Es presencia.
+
+Hay algo en la forma en que habitas el espacio
+que hace que todo alrededor se ajuste apenas,
+como si tu sola existencia reclamara coherencia.
+
+Eres firme sin dureza.
+Segura sin arrogancia.
+Inteligente sin necesidad de demostrarlo.
+Y esa combinación —esa mezcla de fuerza tranquila y luz propia—
+me resulta imposible de ignorar.
+
+Cuando sonríes, no buscas aprobación.
+No pides nada.
+Simplemente sucede.
+Y en ese instante,
+el mundo parece alinearse un poco,
+como si encontrara su eje.
+
+Hay personas que uno admira.
+Hay otras que uno desea.
+
+Contigo ocurre algo más complejo:
+te miro y siento que estoy frente a alguien
+que no se repite,
+que no es reemplazable,
+que no pasa desapercibida ni aunque lo intente.
+
+Y eso…
+eso es lo que realmente inquieta.`
+  },
+  {
+    name:"Infinito",
+    kind:"infinity",
+    msg:`El infinito no siempre es una promesa grandilocuente.
+A veces es algo mucho más simple y más serio:
+es la decisión de quedarse.
+
+Contigo, flor del mar,
+la idea de permanencia dejó de parecerme abstracta.
+Se volvió concreta.
+Se volvió deseable.
+
+No es solo tu sonrisa —aunque tenga esa forma exacta de desarmarme—,
+ni tus labios cuando se inclinan apenas
+como si guardaran un secreto que no termina de revelarse.
+
+Es algo más profundo.
+
+Es tu fuerza silenciosa cuando el día pesa.
+Es tu inteligencia cuando todo exige claridad.
+Es tu manera de sostenerte firme
+sin dejar de ser suave.
+
+Hay algo en tu presencia
+que no se siente pasajero.
+Algo que no parece hecho para el instante,
+sino para el tiempo.
+
+Y ahí es donde entiendo:
+
+Que lo que empezó como latido
+y luego se volvió luz,
+ahora tiene forma de continuidad.
+
+No como exceso.
+No como impulso.
+
+Sino como certeza.`
+  }
+];
+
+/* ===== Texto ===== */
+function renderGlowText(container, text){
+  container.innerHTML = "";
+  const blocks = text.split(/\n\s*\n/g).map(s=>s.trim()).filter(Boolean);
+  let delay = 0;
+  for(const b of blocks){
+    const p = document.createElement("div");
+    p.className = "glowLine";
+    p.style.animationDelay = `${delay}ms`;
+    p.textContent = b;
+    container.appendChild(p);
+    delay += 260;
+  }
+  container.scrollTop = 0;
+}
+function openMessage(text, onContinue){
+  pausedForMessage=true;
+  whisperOverlay.classList.add("show");
+  pendingNext=onContinue;
+  renderGlowText(whisperBody, text);
+}
+function closeMessage(){
+  whisperOverlay.classList.remove("show");
+  pausedForMessage=false;
+  if(typeof pendingNext==="function"){
+    const fn=pendingNext; pendingNext=null; fn();
+  }
+}
+continueBtn.addEventListener("click", closeMessage);
+whisperOverlay.addEventListener("click",(e)=>{ if(e.target===whisperOverlay) closeMessage(); });
+addEventListener("keydown",(e)=>{
+  if(pausedForMessage && (e.key==="Enter" || e.key===" ")){
+    e.preventDefault(); closeMessage();
+  }
+});
+
+/* ===== Recuerdo (polaroid) ===== */
+function openPolaroid(){
+  const dataURL = canvas.toDataURL("image/png");
+  polaroidImg.src = dataURL;
+  downloadLink.href = dataURL;
+  polaroidOverlay.classList.add("show");
+}
+function closePolaroidFn(){ polaroidOverlay.classList.remove("show"); }
+
+saveBtn.addEventListener("click", openPolaroid);
+closePolaroid.addEventListener("click", closePolaroidFn);
+polaroidOverlay.addEventListener("click",(e)=>{ if(e.target===polaroidOverlay) closePolaroidFn(); });
+
+/* ===== Fondo ===== */
+function drawBackground(t){
+  const g = ctx.createRadialGradient(W*0.35,H*0.25, 60, W*0.55,H*0.5, Math.max(W,H));
+  g.addColorStop(0, "#2b0b46");
+  g.addColorStop(0.45, "#12061f");
+  g.addColorStop(1, "#070610");
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  ctx.globalAlpha=0.20;
+  for(let i=0;i<6;i++){
+    const x=(Math.sin(t*0.0004+i)*0.5+0.5)*W;
+    const y=(Math.cos(t*0.00035+i*1.7)*0.5+0.5)*H;
+    const r=rand(170,330);
+    const fog=ctx.createRadialGradient(x,y,0,x,y,r);
+    fog.addColorStop(0,"rgba(255,200,120,0.14)");
+    fog.addColorStop(1,"rgba(255,200,120,0)");
+    ctx.fillStyle=fog;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  if(finalMode){
+    const dt = (performance.now() - finalStartMs);
+    if(dt < 12000){
+      const beat = (Math.sin(dt*0.006) * 0.5 + 0.5);
+      const beat2 = (Math.sin(dt*0.012 + 1.2) * 0.5 + 0.5);
+      const a = 0.06 + 0.08*beat + 0.04*beat2;
+
+      const cx = finalCenter.x, cy = finalCenter.y;
+      const pulse = ctx.createRadialGradient(cx,cy,0,cx,cy,Math.min(W,H)*0.6);
+      pulse.addColorStop(0, `rgba(255,210,90,${a})`);
+      pulse.addColorStop(0.35, `rgba(255,180,80,${a*0.35})`);
+      pulse.addColorStop(1, `rgba(255,180,80,0)`);
+      ctx.fillStyle = pulse;
+      ctx.beginPath(); ctx.arc(cx,cy,Math.min(W,H)*0.6,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+/* ===== Luciérnagas ===== */
+const fireflies=[];
+function initFireflies(n=72){
+  fireflies.length=0;
+  for(let i=0;i<n;i++){
+    fireflies.push({x:rand(0,W),y:rand(0,H),vx:rand(-0.32,0.32),vy:rand(-0.22,0.22),r:rand(1.2,3.2),phase:rand(0,Math.PI*2),speed:rand(0.008,0.02),glow:rand(0.5,0.98),tid:i});
+  }
+}
+function drawFireflies(t){
+  const now = performance.now();
+  const haloWindow = haloActive && (now - finalStartMs) < 14000;
+
+  for(const f of fireflies){
+    if(haloWindow){
+      const cx = finalCenter.x, cy = finalCenter.y;
+      const ang = (f.tid / Math.max(1, fireflies.length)) * Math.PI*2;
+      const R = Math.min(W,H)*0.22;
+      const tx = cx + Math.cos(ang)*R;
+      const ty = cy + Math.sin(ang)*R;
+
+      f.x = lerp(f.x, tx, 0.012);
+      f.y = lerp(f.y, ty, 0.012);
+      f.x += Math.sin(t*0.001 + f.phase)*0.14;
+      f.y += Math.cos(t*0.0012 + f.phase)*0.12;
+    } else {
+      f.x += f.vx + Math.sin(t*0.001+f.phase)*0.18;
+      f.y += f.vy + Math.cos(t*0.0012+f.phase)*0.14;
+      if(f.x<-50)f.x=W+50; if(f.x>W+50)f.x=-50;
+      if(f.y<-50)f.y=H+50; if(f.y>H+50)f.y=-50;
+    }
+
+    const pulse=(Math.sin(t*f.speed+f.phase)*0.5+0.5);
+    const a=0.10+0.70*pulse*f.glow;
+
+    ctx.globalAlpha=a;
+    const halo=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,f.r*18);
+    halo.addColorStop(0,"rgba(255,215,120,0.90)");
+    halo.addColorStop(0.35,"rgba(255,160,80,0.20)");
+    halo.addColorStop(1,"rgba(255,160,80,0)");
+    ctx.fillStyle=halo; ctx.beginPath(); ctx.arc(f.x,f.y,f.r*18,0,Math.PI*2); ctx.fill();
+
+    ctx.globalAlpha=0.6+0.35*pulse;
+    ctx.fillStyle="rgba(255,235,190,1)";
+    ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+}
+
+/* ===== Luz cursor + chispas ===== */
+const trail=[], sparks=[], glitter=[];
+function addCursorTrail(){
+  if(!mouse.has) return;
+  trail.push({x:mouse.x,y:mouse.y,t:0}); if(trail.length>26) trail.shift();
+  const speed=Math.hypot(mouse.vx,mouse.vy);
+  const n=clamp(Math.floor(speed*0.10),1,8);
+  for(let i=0;i<n;i++){
+    sparks.push({x:mouse.x+rand(-6,6),y:mouse.y+rand(-6,6),vx:rand(-1.0,1.0)+mouse.vx*0.05,vy:rand(-1.4,0.2)+mouse.vy*0.05,life:rand(22,56),t:0,r:rand(1.0,2.4)});
+  }
+}
+function drawCursorLight(){
+  if(!mouse.has) return;
+  const glow=ctx.createRadialGradient(mouse.x,mouse.y,0,mouse.x,mouse.y,240);
+  glow.addColorStop(0,"rgba(255,210,90,0.55)");
+  glow.addColorStop(0.25,"rgba(255,190,70,0.22)");
+  glow.addColorStop(1,"rgba(255,190,70,0)");
+  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(mouse.x,mouse.y,240,0,Math.PI*2); ctx.fill();
+
+  for(const p of trail){
+    p.t++;
+    const a=Math.max(0,1-p.t/18);
+    ctx.globalAlpha=0.20*a;
+    const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,95);
+    g.addColorStop(0,"rgba(255,220,120,0.55)");
+    g.addColorStop(1,"rgba(255,220,120,0)");
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,95,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+}
+function drawSparks(){
+  for(let i=sparks.length-1;i>=0;i--){
+    const s=sparks[i];
+    s.t++; s.x+=s.vx; s.y+=s.vy; s.vy+=0.02;
+    const a=Math.max(0,1-s.t/s.life);
+    ctx.globalAlpha=a;
+    const gl=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*12);
+    gl.addColorStop(0,"rgba(255,225,140,0.95)");
+    gl.addColorStop(0.4,"rgba(255,170,70,0.22)");
+    gl.addColorStop(1,"rgba(255,170,70,0)");
+    ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(s.x,s.y,s.r*12,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    if(s.t>s.life) sparks.splice(i,1);
+  }
+}
+
+/* ===== Glitter / explosión ===== */
+let screenFlash=0;
+function megaExplosion(x,y, intensity=1){
+  for(let i=0;i<140*intensity;i++){
+    sparks.push({x:x+rand(-10,10),y:y+rand(-10,10),vx:rand(-3.2,3.2)*intensity,vy:rand(-3.8,1.2)*intensity,life:rand(40,110),t:0,r:rand(1.2,3.4)*intensity});
+  }
+  for(let i=0;i<260*intensity;i++){
+    glitter.push({x:x+rand(-8,8),y:y+rand(-8,8),vx:rand(-3.4,3.4)*intensity,vy:rand(-5.0,0.8)*intensity,rot:rand(0,Math.PI*2),vr:rand(-0.25,0.25),s:rand(2.0,4.8),life:rand(70,160),t:0,shape:Math.random()<0.55?"sq":"tri",a:rand(0.55,0.95)});
+  }
+  screenFlash = Math.min(1.0, screenFlash + 0.85*intensity);
+}
+function drawGlitter(){
+  for(let i=glitter.length-1;i>=0;i--){
+    const g=glitter[i];
+    g.t++; g.x+=g.vx; g.y+=g.vy; g.vy+=0.035; g.rot+=g.vr;
+
+    const a = g.a * Math.max(0, 1 - g.t/g.life);
+    ctx.globalAlpha = a;
+
+    ctx.save(); ctx.translate(g.x,g.y); ctx.rotate(g.rot);
+    ctx.fillStyle = "rgba(255,210,90,1)";
+    ctx.strokeStyle = "rgba(255,235,190,0.8)";
+    ctx.lineWidth = 1;
+    if(g.shape==="sq"){ ctx.beginPath(); ctx.rect(-g.s/2,-g.s/2,g.s,g.s); ctx.fill(); ctx.stroke(); }
+    else{ ctx.beginPath(); ctx.moveTo(0,-g.s/2); ctx.lineTo(g.s/2,g.s/2); ctx.lineTo(-g.s/2,g.s/2); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+
+    ctx.globalAlpha=1;
+    if(g.t>g.life) glitter.splice(i,1);
+  }
+
+  if(screenFlash>0){
+    screenFlash = Math.max(0, screenFlash - 0.035);
+    ctx.globalAlpha = 0.10*screenFlash;
+    ctx.fillStyle = "rgba(255,210,90,1)";
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ===== Flores + rosquitas con luces ===== */
+const flowers=[];
+function petalPath(ctx,w,h){
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.bezierCurveTo(w*0.55,-h*0.15,w*0.68,-h*0.78,0,-h);
+  ctx.bezierCurveTo(-w*0.68,-h*0.78,-w*0.55,-h*0.15,0,0);
+  ctx.closePath();
+}
+function spawnInitialFlowers(){
+  flowers.length=0;
+  const n=7;
+  for(let i=0;i<n;i++){
+    const x=W*(0.14+i*(0.72/(n-1)));
+    const y=H*(0.62+rand(-0.05,0.06));
+    const s=rand(0.72,1.08)*(i===Math.floor(n/2)?1.18:1);
+    flowers.push({x,y,baseX:x,baseY:y,s,sway:rand(0,Math.PI*2),glow:rand(0.9,1.35),stem:rand(160,280)*s,pullX:0,pullY:0});
+  }
+}
+function drawStem(f,t){
+  ctx.save(); ctx.translate(f.x,f.y);
+  const sway=Math.sin(t*0.001+f.sway)*0.12; ctx.rotate(sway);
+  ctx.lineWidth = 8.8 * f.s;
+  ctx.strokeStyle = "rgba(30,140,95,0.74)";
+  ctx.beginPath();
+  ctx.moveTo(0,18);
+  ctx.quadraticCurveTo(-10*f.s,70*f.s,-6*f.s,f.stem);
+  ctx.stroke();
+  ctx.fillStyle="rgba(45,185,130,0.34)";
+  ctx.beginPath(); ctx.ellipse(-18*f.s,78*f.s,24*f.s,11*f.s,-0.8,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+function drawFlower(f,t){
+  if(mouse.has){
+    const dx=mouse.x-f.x, dy=(mouse.y-40)-f.y;
+    const d=Math.hypot(dx,dy);
+    const infl=clamp(1-d/520,0,1);
+    f.pullX=lerp(f.pullX, dx*0.06*infl, 0.06);
+    f.pullY=lerp(f.pullY, dy*0.04*infl, 0.06);
+  } else { f.pullX=lerp(f.pullX,0,0.04); f.pullY=lerp(f.pullY,0,0.04); }
+
+  const breathe=1+Math.sin(t*0.002+f.sway)*0.03;
+  f.x=lerp(f.x,f.baseX+Math.sin(t*0.0008+f.sway)*10+f.pullX,0.10);
+  f.y=lerp(f.y,f.baseY+Math.cos(t*0.0009+f.sway)*8+f.pullY,0.10);
+
+  const mx=mouse.has?(mouse.x-f.x)/W:0;
+
+  ctx.save(); ctx.translate(f.x,f.y);
+  ctx.rotate(clamp(mx*0.22,-0.22,0.22));
+  ctx.scale(f.s*breathe,f.s*breathe);
+
+  const warm=ctx.createRadialGradient(0,-40,10,0,-40,240);
+  warm.addColorStop(0,`rgba(255,205,95,${0.22*f.glow})`);
+  warm.addColorStop(1,"rgba(255,205,95,0)");
+  ctx.fillStyle=warm; ctx.beginPath(); ctx.arc(0,-40,240,0,Math.PI*2); ctx.fill();
+
+  const petalCount=6;
+  for(let i=0;i<petalCount;i++){
+    ctx.save();
+    const ang=(Math.PI*2/petalCount)*i+Math.sin(t*0.001+f.sway)*0.06;
+    ctx.rotate(ang);
+
+    const g=ctx.createLinearGradient(0,-165,0,20);
+    g.addColorStop(0,"rgba(255,250,238,0.95)");
+    g.addColorStop(0.55,"rgba(255,238,210,0.90)");
+    g.addColorStop(1,"rgba(255,205,95,0.72)");
+    ctx.fillStyle=g;
+    ctx.strokeStyle="rgba(255,190,75,0.45)";
+    ctx.lineWidth=2.3;
+
+    ctx.translate(0,-10);
+    ctx.rotate(0.10*Math.sin(t*0.0013+f.sway+i));
+    petalPath(ctx,72,155);
+    ctx.fill(); ctx.stroke();
+
+    ctx.globalAlpha=0.55;
+    const gl=ctx.createRadialGradient(0,-60,0,0,-60,65);
+    gl.addColorStop(0,"rgba(255,200,90,0.55)");
+    gl.addColorStop(1,"rgba(255,200,90,0)");
+    ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(0,-60,65,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+
+  const center=ctx.createRadialGradient(0,-35,0,0,-35,85);
+  center.addColorStop(0,"rgba(95,25,135,0.92)");
+  center.addColorStop(0.6,"rgba(55,10,90,0.88)");
+  center.addColorStop(1,"rgba(30,0,55,0)");
+  ctx.fillStyle=center; ctx.beginPath(); ctx.arc(0,-35,85,0,Math.PI*2); ctx.fill();
+
+  // palito amarillo + ramitas + rosquitas + puntitos de luz
+  ctx.save(); ctx.translate(0,-60);
+  ctx.shadowColor="rgba(255,210,90,0.95)"; ctx.shadowBlur=22;
+  ctx.lineWidth=3.3; ctx.strokeStyle="rgba(255,210,90,0.98)"; ctx.lineCap="round";
+
+  const wig=Math.sin(t*0.003+f.sway)*2.2;
+
+  ctx.beginPath();
+  ctx.moveTo(0,72);
+  ctx.quadraticCurveTo(12+wig,26,0,-10);
+  ctx.quadraticCurveTo(-12-wig,-36,-4,-56);
+  ctx.stroke();
+
+  const stemEnd = { x: -4, y: -56 };
+  const leftCenter  = { x: stemEnd.x - 16, y: stemEnd.y + 18 };
+  const rightCenter = { x: stemEnd.x + 18, y: stemEnd.y + 22 };
+
+  // ramitas conectadas
+  ctx.beginPath();
+  ctx.moveTo(stemEnd.x, stemEnd.y);
+  ctx.quadraticCurveTo(stemEnd.x - 10, stemEnd.y + 6, leftCenter.x + 6, leftCenter.y - 6);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(stemEnd.x, stemEnd.y);
+  ctx.quadraticCurveTo(stemEnd.x + 10, stemEnd.y + 8, rightCenter.x - 8, rightCenter.y - 6);
+  ctx.stroke();
+
+  function drawSpiral(centerX, centerY, turns, growth, phase){
+    let lastX = centerX, lastY = centerY;
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * turns; a += 0.18) {
+      const r = 2 + a * growth;
+      const x = Math.cos(a + phase) * r + centerX;
+      const y = Math.sin(a + phase) * r + centerY;
+      if (a === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      lastX = x; lastY = y;
+    }
+    ctx.stroke();
+    return { x: lastX, y: lastY };
+  }
+
+  const leftEnd  = drawSpiral(leftCenter.x,  leftCenter.y,  2.0, 2.9,  0.35);
+  const rightEnd = drawSpiral(rightCenter.x, rightCenter.y, 1.9, 2.8, -0.25);
+
+  function glowDot(x,y, r=3.2){
+    const gg = ctx.createRadialGradient(x,y,0,x,y,r*18);
+    gg.addColorStop(0,"rgba(255,230,160,0.95)");
+    gg.addColorStop(0.35,"rgba(255,190,90,0.25)");
+    gg.addColorStop(1,"rgba(255,190,90,0)");
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(x,y,r*18,0,Math.PI*2); ctx.fill();
+
+    ctx.fillStyle = "rgba(255,245,215,1)";
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  glowDot(leftEnd.x, leftEnd.y, 3.1);
+  glowDot(rightEnd.x, rightEnd.y, 3.1);
+
+  ctx.shadowBlur=0; ctx.restore();
+  ctx.restore();
+}
+
+/* ===== Formas ===== */
+function sampleParametric(fn, steps, cx, cy, sx, sy){
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const tt=i/steps;
+    const p=fn(tt);
+    pts.push({x:cx+p.x*sx, y:cy+p.y*sy});
+  }
+  return pts;
+}
+function heartFn(t){
+  const a=t*Math.PI*2;
+  const x=16*Math.pow(Math.sin(a),3)/18;
+  const y=-(13*Math.cos(a)-5*Math.cos(2*a)-2*Math.cos(3*a)-Math.cos(4*a))/18;
+  return {x,y};
+}
+function starFn(t){
+  const a=t*Math.PI*2;
+  const k=5;
+  const r=0.55+0.45*Math.sin(k*a);
+  return {x:Math.cos(a)*r, y:Math.sin(a)*r};
+}
+function infinityFn(t){
+  const a = t*Math.PI*2;
+  const s = Math.sin(a);
+  const c = Math.cos(a);
+  const denom = 1 + s*s;
+  return {x: c/denom, y: (s*c)/denom};
+}
+
+function buildPhaseShape(){
+  const phase=phases[phaseIndex];
+  shapeNameEl.textContent=phase.name;
+  progEl.textContent="0%";
+
+  const cx=W*0.5;
+  const cy=H*0.235; // un poquito más arriba
+  finalCenter = {x: cx, y: cy};
+
+  const sx=Math.min(W,H)*0.23;
+  const sy=Math.min(W,H)*0.21;
+
+  let fn=heartFn, steps=900;
+  if(phase.kind==="star"){ fn=starFn; steps=760; }
+  if(phase.kind==="infinity"){ fn=infinityFn; steps=920; }
+
+  shapePoints=sampleParametric(fn, steps, cx, cy, sx, sy);
+  progressIdx=0; progressHold=0;
+  stuckParticles=[]; lastStuckAt=0;
+}
+
+/* Partículas pegadas */
+function stickParticleAt(x,y){
+  stuckParticles.push({x:x+rand(-3,3), y:y+rand(-3,3), r:rand(1.4,3.2), a:rand(0.4,0.95)});
+  if(stuckParticles.length>1400) stuckParticles.shift();
+}
+function drawStuckParticles(){
+  for(const p of stuckParticles){
+    ctx.globalAlpha=p.a;
+    const gl=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*12);
+    gl.addColorStop(0,"rgba(255,225,140,0.90)");
+    gl.addColorStop(0.4,"rgba(255,170,70,0.22)");
+    gl.addColorStop(1,"rgba(255,170,70,0)");
+    ctx.fillStyle=gl;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*12,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+/* Guía forma */
+function drawShapeGuide(t){
+  if(shapePoints.length<2) return;
+
+  ctx.lineWidth=3;
+  ctx.strokeStyle="rgba(255,210,90,0.14)";
+  ctx.beginPath();
+  for(let i=0;i<shapePoints.length;i++){
+    const p=shapePoints[i];
+    if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+  }
+  ctx.closePath(); ctx.stroke();
+
+  ctx.lineWidth=4;
+  ctx.strokeStyle="rgba(255,210,90,0.52)";
+  ctx.beginPath();
+  const max=Math.max(1,progressIdx);
+  for(let i=0;i<max;i++){
+    const p=shapePoints[i];
+    if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+  }
+  ctx.stroke();
+
+  const tip=shapePoints[Math.min(progressIdx, shapePoints.length-1)];
+  const pulse=(Math.sin(t*0.01)*0.5+0.5);
+  const halo=ctx.createRadialGradient(tip.x,tip.y,0,tip.x,tip.y,100);
+  halo.addColorStop(0,`rgba(255,225,140,${0.62+0.22*pulse})`);
+  halo.addColorStop(0.35,"rgba(255,170,70,0.22)");
+  halo.addColorStop(1,"rgba(255,170,70,0)");
+  ctx.fillStyle=halo;
+  ctx.beginPath(); ctx.arc(tip.x,tip.y,100,0,Math.PI*2); ctx.fill();
+}
+
+/* ===== Anillo de luciérnagas (gating del final) ===== */
+function drawFireflyRing(progress01, t){
+  const cx = finalCenter.x, cy = finalCenter.y;
+  const R = Math.min(W,H)*0.23;
+  const steps = 220;
+  const max = Math.floor(steps * clamp(progress01,0,1));
+
+  for(let i=0;i<=max;i++){
+    const a = (i/steps) * Math.PI*2;
+    const x = cx + Math.cos(a)*R;
+    const y = cy + Math.sin(a)*R;
+
+    const pulse = (Math.sin(t*0.01 + i*0.35)*0.5+0.5);
+    const r = 2.1 + 1.6*pulse;
+
+    const halo = ctx.createRadialGradient(x,y,0,x,y,r*18);
+    halo.addColorStop(0,"rgba(255,230,160,0.90)");
+    halo.addColorStop(0.35,"rgba(255,180,90,0.22)");
+    halo.addColorStop(1,"rgba(255,180,90,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(x,y,r*18,0,Math.PI*2); ctx.fill();
+
+    ctx.fillStyle = "rgba(255,245,215,1)";
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+}
+
+/* Progreso */
+function updateProgress(){
+  if(pausedForMessage) return;
+  if(finalMode) return;
+  if(!mouse.has || shapePoints.length<10) return;
+
+  const tip=shapePoints[Math.min(progressIdx, shapePoints.length-1)];
+  const d=Math.hypot(mouse.x-tip.x, mouse.y-tip.y);
+
+  if(d<FOLLOW_R){
+    progressHold=7;
+    progressIdx=Math.min(shapePoints.length-1, progressIdx+ADVANCE_STEP);
+
+    if(progressIdx-lastStuckAt>6){
+      lastStuckAt=progressIdx;
+      const p=shapePoints[progressIdx];
+      stickParticleAt(p.x,p.y);
+    }
+  } else {
+    if(progressHold>0) progressHold--;
+    else progressIdx=Math.max(0, progressIdx-FAIL_DECAY);
+  }
+
+  const pct=Math.floor((progressIdx/(shapePoints.length-1))*100);
+  progEl.textContent=pct+"%";
+
+  if(progressIdx>=shapePoints.length-2){
+    progressIdx=0;
+    completePhase();
+  }
+}
+
+/* Completar fase */
+function completePhase(){
+  const phase=phases[phaseIndex];
+  const x=finalCenter.x, y=finalCenter.y;
+
+  if(phase.kind==="heart"){
+    megaExplosion(x,y,0.55);
+    openMessage(phase.msg, ()=>{
+      phaseIndex++;
+      buildPhaseShape();
+    });
+  } else if(phase.kind==="star"){
+    megaExplosion(x,y,0.85);
+    openMessage(phase.msg, ()=>{
+      phaseIndex++;
+      buildPhaseShape();
+    });
+  } else {
+    // Infinito: explosión + esperar a que el anillo de luciérnagas cierre
+    megaExplosion(x,y,1.55);
+    initFireflies(210);
+
+    finalMode=true;
+    finalStartMs = performance.now();
+    haloActive=true;
+
+    infinityGating = true;
+    infinityGateStart = performance.now();
+    ringProgress01 = 0;
+
+    const hint=document.getElementById("hint");
+    if(hint) hint.style.opacity="0";
+  }
+}
+
+/* Mostrar final (solo cuando el anillo cierre) */
+function showFinalMessage(){
+  const phase = phases[2];
+  finalTitle.textContent="flor del mar";
+  finale.classList.add("show");
+  renderGlowText(finalBody, phase.msg);
+}
+
+/* Reiniciar */
+function restartAll(){
+  finale.classList.remove("show");
+  polaroidOverlay.classList.remove("show");
+
+  const hint=document.getElementById("hint");
+  if(hint) hint.style.opacity="1";
+
+  finalMode=false;
+  haloActive=false;
+  infinityGating=false;
+
+  phaseIndex=0;
+  initFireflies(72);
+  spawnInitialFlowers();
+  buildPhaseShape();
+
+  stuckParticles=[];
+  progressIdx=0;
+  progressHold=0;
+  progEl.textContent="0%";
+}
+restartBtn.addEventListener("click", restartAll);
+
+/* Resize */
+function resize(){
+  W=innerWidth; H=innerHeight;
+  canvas.width=W*DPR; canvas.height=H*DPR;
+  canvas.style.width=W+"px"; canvas.style.height=H+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+
+  spawnInitialFlowers();
+  if(!finalMode) initFireflies(72);
+  buildPhaseShape();
+}
+addEventListener("resize", resize);
+
+/* Start */
+resize();
+initFireflies(72);
+spawnInitialFlowers();
+buildPhaseShape();
+
+/* Loop */
+function frame(t){
+  drawBackground(t);
+  addCursorTrail();
+  drawCursorLight();
+  drawFireflies(t);
+
+  for(const f of flowers){
+    drawStem(f,t);
+    drawFlower(f,t);
+  }
+
+  drawShapeGuide(t);
+  drawStuckParticles();
+
+  if(infinityGating){
+    // deja que se vea la explosión primero y luego arma el anillo
+    const dt = performance.now() - infinityGateStart;
+    const startAfter = 700;
+    const dur = 2200;
+    ringProgress01 = clamp((dt - startAfter)/dur, 0, 1);
+
+    // Dibujar el anillo de luciérnagas alrededor
+    drawFireflyRing(ringProgress01, t);
+
+    if(ringProgress01 >= 1){
+      infinityGating = false;
+      showFinalMessage();
+    }
+  } else {
+    updateProgress();
+  }
+
+  drawSparks();
+  drawGlitter();
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
