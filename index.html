@@ -453,11 +453,7 @@ async function tryStartAudio(userGesture=false){
   }
 
   audioToast.classList.remove("hidden");
-  if(userGesture){
-    setToast("No se pudo reproducir. Usa musica.mp3 en la misma carpeta.");
-  } else {
-    setToast("Toca para activar música");
-  }
+  setToast("Toca para activar música");
   return false;
 }
 
